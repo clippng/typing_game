@@ -1,21 +1,7 @@
 #include "gui.hpp"
-#include "lib_imgui/imgui.h"
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_events.h>
-#include <SDL2/SDL_hints.h>
-#include <SDL2/SDL_render.h>
-#include <SDL2/SDL_video.h>
-#include <SDL2/SDL_vulkan.h>
-#include <cstddef>
-#include <cstdint>
-#include <memory>
-#include <stdexcept>
-#include <vulkan/vulkan_core.h>
-
 
 GUI::GUI() {
 	ImGui::CreateContext(); 
-
 	try {
 		initialise();
 	}
@@ -25,6 +11,17 @@ GUI::GUI() {
 		exit(1);
 	}
 
+}
+
+GUI::~GUI() {
+	VkResult result = vkDeviceWaitIdle(device);
+    errorCheck(result);
+    ImGui_ImplVulkan_Shutdown();
+    ImGui_ImplSDL2_Shutdown();
+    ImGui::DestroyContext();
+
+    cleanUpVulkanWindow();
+    cleanUpVulkan();
 }
 
 void GUI::initialise() {
@@ -64,13 +61,7 @@ void GUI::initialise() {
 }
 
 void GUI::setupVulkan(ImVector<const char*> instance_extensions) {
-	VkResult result;
-
-	g_allocator = nullptr;
-	g_instance = VK_NULL_HANDLE;
-	g_debug_report = VK_NULL_HANDLE;
-	g_queue = VK_NULL_HANDLE;
-	g_queue_family = (uint32_t) - 1;
+	VkResult error_code;
 	
 	{
 		VkInstanceCreateInfo create_info = {};
@@ -80,11 +71,8 @@ void GUI::setupVulkan(ImVector<const char*> instance_extensions) {
 		ImVector<VkExtensionProperties> properties;
 		vkEnumerateInstanceExtensionProperties(nullptr, &properties_count, nullptr);
 		properties.resize(properties_count);
-		result = vkEnumerateInstanceExtensionProperties(nullptr, &properties_count, properties.Data);
-		
-		if (result < 0) {
-			throw std::runtime_error("Couldn't initialsie Vulkan");
-		}
+		error_code = vkEnumerateInstanceExtensionProperties(nullptr, &properties_count, properties.Data);
+		errorCheck(error_code);
 
 		if (extensionCheckAvailable(properties, VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME)) {
 			instance_extensions.push_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
@@ -108,44 +96,90 @@ void GUI::setupVulkan(ImVector<const char*> instance_extensions) {
 
 		create_info.enabledExtensionCount = (uint32_t)instance_extensions.Size;
 		create_info.ppEnabledExtensionNames = instance_extensions.Data;
-		result = vkCreateInstance(&create_info, g_allocator, &g_instance);
-
-		if (result < 0) {
-			throw std::runtime_error("Couldn't initialsie Vulkan");
-		}
+		error_code = vkCreateInstance(&create_info, allocator, &instance);
+		errorCheck(error_code);
 
 		#ifdef APP_USE_VULKAN_DEBUG_REPORT
 
-		auto vkCreateDebugReportCallbakcEXT = (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr(g_instance, "vkCreateDebugReportCallbackEXT");
+		auto vkCreateDebugReportCallbakcEXT = (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugReportCallbackEXT");
 		IM_ASSERT(vkCreateDebugReportCallbakcEXT != nullptr);
 		VkDebugReportCallbackCreateInfoEXT debug_report_create_info = {};
 		debug_report_create_info.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
 		debug_report_create_info.flags = VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT;
-		debug_report_create_info.pfnCallback = debug_report;
-		result = vkCreateDebugReportCallbakcEXT(g_instance, &debug_report_create_info, g_allocator, &g_debug_report);
-
-		if (result < 0) {
-			throw std::runtime_error("Couldn't initialise Vulkan");
-		}
+		debug_report_create_info.pfnCallback = debugReport;
+		error_code = vkCreateDebugReportCallbakcEXT(instance, &debug_report_create_info, allocator, &debug_report);
+		errorCheck(error_code);
 		#endif
 	}
 
-	g_physical_device = selectGPU();
+	physical_device = selectGPU();
 
 	{
 		uint32_t count;
-		vkGetPhysicalDeviceQueueFamilyProperties(g_physical_device, &count, nullptr);
+		vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &count, nullptr);
 		std::unique_ptr<VkQueueFamilyProperties> queues;
-		vkGetPhysicalDeviceQueueFamilyProperties(g_physical_device, &count, queues.get());	
+		vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &count, queues.get());	
 
 		for (uint32_t i = 0; i < count; ++i) {
 			if (queues.get()[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
-				g_queue_family = i;
+				queue_family = i;
 				break;
 			}
 		}
+
+		IM_ASSERT(queue_family != (uint32_t) - 1);
 		
 	}
+
+	{
+		ImVector<const char*> device_extensions;
+		device_extensions.push_back("VK_KHR_swapchain");
+
+		uint32_t properties_count;
+		ImVector<VkExtensionProperties> properties;
+		vkEnumerateDeviceExtensionProperties(physical_device, nullptr, &properties_count,  nullptr);
+		properties.resize(properties_count);
+		vkEnumerateDeviceExtensionProperties(physical_device, nullptr, &properties_count, properties.Data);
+	
+		#ifdef VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME
+		if (extensionCheckAvailable(properties, VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME)) {
+			device_extensions.push_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
+		}
+		#endif
+
+		const float queue_priority[] = {1.0f};
+
+		VkDeviceQueueCreateInfo queue_info[1] = {};
+		queue_info[0].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+		queue_info[0].queueFamilyIndex = queue_family;
+		queue_info[0].queueCount = 1;
+		queue_info[0].pQueuePriorities = queue_priority;
+
+		VkDeviceCreateInfo create_info = {};
+		create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+		create_info.queueCreateInfoCount = sizeof(queue_info) / sizeof(queue_info[0]);
+		create_info.pQueueCreateInfos = queue_info;
+		create_info.enabledExtensionCount = (uint32_t)device_extensions.Size;
+		create_info.ppEnabledExtensionNames = device_extensions.Data;
+		error_code = vkCreateDevice(physical_device, &create_info, allocator, &device);
+		errorCheck(error_code);
+
+		vkGetDeviceQueue(device, queue_family, 0, &queue);
+	}
+
+	{
+		VkDescriptorPoolSize pool_sizes[] = {
+			{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1},
+		};
+		VkDescriptorPoolCreateInfo pool_info = {};
+		pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+		pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+		pool_info.maxSets = 1;
+		pool_info.poolSizeCount = (uint32_t)IM_ARRAYSIZE(pool_sizes);
+		pool_info.pPoolSizes = pool_sizes;
+		error_code = vkCreateDescriptorPool(device, &pool_info, allocator, &descriptor_pool);
+	}
+	
 }
 
 void GUI::update() {
@@ -171,6 +205,16 @@ void GUI::handleInput() {
 	}
 }
 
+void GUI::errorCheck(VkResult result) {
+	if (result == 0) {
+		return;
+	}
+	std::cerr << "[vulkan] Error code: " << result << std::endl;
+	if (result < 0) {
+		std::abort();
+	}
+}
+
 bool GUI::extensionCheckAvailable(const ImVector<VkExtensionProperties>& properties, const char* extension) {
 	for (const VkExtensionProperties& p : properties) {
 		if (strcmp(p.extensionName, extension) == 0) {
@@ -182,13 +226,13 @@ bool GUI::extensionCheckAvailable(const ImVector<VkExtensionProperties>& propert
 
 VkPhysicalDevice GUI::selectGPU() {
 	uint32_t gpu_count;
-	VkResult result = vkEnumeratePhysicalDevices(g_instance, &gpu_count, nullptr);
+	VkResult result = vkEnumeratePhysicalDevices(instance, &gpu_count, nullptr);
 	//check for errors
 	IM_ASSERT(gpu_count < 0);
 
 	ImVector<VkPhysicalDevice> gpus;
 	gpus.resize(gpu_count);
-	result = vkEnumeratePhysicalDevices(g_instance, &gpu_count, gpus.Data);
+	result = vkEnumeratePhysicalDevices(instance, &gpu_count, gpus.Data);
 	//check for errors
 
 	for (VkPhysicalDevice& device : gpus) {
@@ -205,7 +249,23 @@ VkPhysicalDevice GUI::selectGPU() {
 	return VK_NULL_HANDLE;
 }
 
-VKAPI_ATTR VkBool32 VKAPI_CALL GUI::debug_report(VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objectType, uint64_t object, size_t location, int32_t messageCode, const char* pLayerPrefix, const char* pMessage, void* pUserData) {
+void GUI::cleanUpVulkanWindow() {
+	ImGui_ImplVulkanH_DestroyWindow(instance, device, &main_window_data, allocator);
+}
+
+void GUI::cleanUpVulkan() {
+	vkDestroyDescriptorPool(device, descriptor_pool, allocator);
+
+	#ifdef APP_USE_VULKAN_DEBUG_REPORT
+    auto vkDestroyDebugReportCallbackEXT = (PFN_vkDestroyDebugReportCallbackEXT)vkGetInstanceProcAddr(instance, "vkDestroyDebugReportCallbackEXT");
+    vkDestroyDebugReportCallbackEXT(instance, debug_report, allocator);
+	#endif 
+
+    vkDestroyDevice(device, allocator);
+    vkDestroyInstance(instance, allocator);
+}
+
+VKAPI_ATTR VkBool32 VKAPI_CALL GUI::debugReport(VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objectType, uint64_t object, size_t location, int32_t messageCode, const char* pLayerPrefix, const char* pMessage, void* pUserData) {
     (void)flags; (void)object; (void)location; (void)messageCode; (void)pUserData; (void)pLayerPrefix; // Unused arguments
     fprintf(stderr, "[vulkan] Debug report from ObjectType: %i\nMessage: %s\n\n", objectType, pMessage);
     return VK_FALSE;

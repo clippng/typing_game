@@ -18,13 +18,6 @@ add_executable(
 
 add_subdirectory(lib_imgui)
 
-
-find_package(Vulkan REQUIRED)
-find_package(SDL2 REQUIRED)
-
-include_directories(${VULKAN_INCLUDE_DIR})
-include_directories(${SDL2_INCLIDE_DIRS})
-
 target_link_libraries(TypingGame ${VULKAN_LIB_LIST})
 target_link_libraries(TypingGame ${SDL2_LIBRARIES})
 target_link_libraries(TypingGame lib_imgui)

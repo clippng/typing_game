@@ -18,3 +18,6 @@ add_library(
 	imstb_textedit.h
 	imstb_truetype.h
 )
+
+target_link_libraries(lib_imgui ${VULKAN_LIB_LIST})
+target_link_libraries(lib_imgui ${SDL2_LIBRARIES})

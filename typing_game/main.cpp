@@ -6,13 +6,14 @@
 
 
 int main() {
-	Game game;
+	VkResult test;
+	/*Game game;
 
 	while (game.running()) {
 		game.update(); 
 	}
 	game.exit();
-
+	*/
 	return 0;
 }
 
