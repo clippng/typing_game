@@ -1,7 +1,9 @@
 #include "gui.hpp"
+#include "lib_imgui/imgui.h"
+#include "lib_imgui/imgui_impl_sdl2.h"
+#include "lib_imgui/imgui_impl_vulkan.h"
 
 GUI::GUI() {
-	ImGui::CreateContext(); 
 	try {
 		initialise();
 	}
@@ -10,7 +12,6 @@ GUI::GUI() {
 		std::cerr << e.what() << std::endl;
 		exit(1);
 	}
-
 }
 
 GUI::~GUI() {
@@ -25,42 +26,14 @@ GUI::~GUI() {
 }
 
 void GUI::initialise() {
-	int renderer_flags = SDL_RENDERER_ACCELERATED;
-	int window_flags = (SDL_WindowFlags)(SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
-
-	if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_GAMECONTROLLER) != 0) {
-		throw std::runtime_error("Couldn't initialise SDL");
-	}
-
-	SDLWindow.window = SDL_CreateWindow("TESTT", SDL_WINDOWPOS_CENTERED, 
-		SDL_WINDOWPOS_CENTERED, 1280, 720, window_flags);
-
-	if (!SDLWindow.window) {
-		throw std::runtime_error("Couldn't initialise SDL");
-	}
-
-	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
-
-	SDLWindow.renderer = SDL_CreateRenderer(SDLWindow.window, -1, renderer_flags);
-	extensions.resize(extensions_count);
-	SDL_Vulkan_GetInstanceExtensions(SDLWindow.window, &extensions_count, extensions.Data);
-	
-	try {
-		setupVulkan(extensions);
-	}
-
-	catch (std::runtime_error& e) {
-		std::cerr << e.what() << std::endl;
-	}
-
-	if (!SDLWindow.renderer) {
-		throw std::runtime_error("Couldn't initialise SDL");
-	}
+	initialiseImGui();
+	initialiseSDL();
+	initialiseVulkan(extensions);
 
 	SDL_Vulkan_GetInstanceExtensions(SDLWindow.window, &extensions_count, nullptr);
 }
 
-void GUI::setupVulkan(ImVector<const char*> instance_extensions) {
+void GUI::initialiseVulkan(ImVector<const char*> instance_extensions) {
 	VkResult error_code;
 	
 	{
@@ -128,7 +101,6 @@ void GUI::setupVulkan(ImVector<const char*> instance_extensions) {
 		}
 
 		IM_ASSERT(queue_family != (uint32_t) - 1);
-		
 	}
 
 	{
@@ -182,13 +154,52 @@ void GUI::setupVulkan(ImVector<const char*> instance_extensions) {
 	
 }
 
+void GUI::initialiseImGui() {
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+	io = ImGui::GetIO();
+}
+
+void GUI::initialiseSDL() {
+	int renderer_flags = SDL_RENDERER_ACCELERATED;
+	int window_flags = (SDL_WindowFlags)(SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
+
+	if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_GAMECONTROLLER) != 0) {
+		throw std::runtime_error("Couldn't initialise SDL");
+	}
+
+	SDLWindow.window = SDL_CreateWindow("TESTT", SDL_WINDOWPOS_CENTERED, 
+		SDL_WINDOWPOS_CENTERED, 1280, 720, window_flags);
+
+	if (!SDLWindow.window) {
+		throw std::runtime_error("Couldn't initialise SDL");
+	}
+
+	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
+
+	SDLWindow.renderer = SDL_CreateRenderer(SDLWindow.window, -1, renderer_flags);
+	extensions.resize(extensions_count);
+	SDL_Vulkan_GetInstanceExtensions(SDLWindow.window, &extensions_count, extensions.Data);
+
+	if (!SDLWindow.renderer) {
+		throw std::runtime_error("Couldn't initialise SDL");
+	}
+}
+
+void GUI::earlyUpdate() {
+	ImGui_ImplSDL2_ProcessEvent(&event);
+}
+
 void GUI::update() {
+	ImGui_ImplVulkan_NewFrame();
+	ImGui_ImplSDL2_NewFrame();
 	ImGui::NewFrame();
-	ImGui::Render();
+	ImGui::ShowDemoWindow();
 }
 
 void GUI::render() {
-
+	ImGui::Render();
+	ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), command_buffer);
 }
 
 void GUI::handleInput() {

@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 
 add_executable(
-	TypingGame
+	typing_game
 
 	main.cpp
 	game.cpp
@@ -18,8 +18,8 @@ add_executable(
 
 add_subdirectory(lib_imgui)
 
-target_link_libraries(TypingGame ${VULKAN_LIB_LIST})
-target_link_libraries(TypingGame ${SDL2_LIBRARIES})
-target_link_libraries(TypingGame lib_imgui)
+target_link_libraries(typing_game ${VULKAN_LIB_LIST})
+target_link_libraries(typing_game ${SDL2_LIBRARIES})
+target_link_libraries(typing_game lib_imgui)
 
-target_include_directories(TypingGame PUBLIC lib_imgui)
+target_include_directories(typing_game PUBLIC lib_imgui)

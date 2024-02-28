@@ -1,5 +1,6 @@
 #pragma once 
 
+#include <SDL2/SDL_events.h>
 #include <SDL2/SDL_render.h>
 #include <SDL2/SDL_stdinc.h>
 #include <SDL2/SDL_video.h>
@@ -33,10 +34,13 @@ public:
 	~GUI();
 
 	void initialise();
-	void setupVulkan(ImVector<const char*> instance_extensions);
+	void initialiseVulkan(ImVector<const char*> instance_extensions);
+	void initialiseImGui();
+	void initialiseSDL();
 
+	void earlyUpdate();
 	void update();
-	void render();
+	void render(); // late update
 	void handleInput();
 	void errorCheck(VkResult result);
 
@@ -63,12 +67,19 @@ private:
 	VkPipelineCache pipeline_cache = VK_NULL_HANDLE;
 	uint32_t queue_family = (uint32_t) - 1;
 
+	SDL_Event event;
+
+	ImGuiIO io;
+
+	VkCommandBuffer command_buffer = VK_NULL_HANDLE;
+
 	ImGui_ImplVulkanH_Window main_window_data;
 	uint32_t min_image_count = 2;
 	bool swap_chain_rebuild = false;
 	
 	bool extensionCheckAvailable(const ImVector<VkExtensionProperties>& properties, const char* extension);
 	VkPhysicalDevice selectGPU(); 
+
 	void cleanUpVulkanWindow();
 	void cleanUpVulkan();
 

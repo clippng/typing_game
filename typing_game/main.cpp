@@ -4,6 +4,7 @@
 // use snippets in a similar way to typeracer -- wanting to do it all
 // in the terminal but might use sfml or similar if thats too hard
 
+// error linking vulkan sdl with imgui
 
 int main() {
 	VkResult test;
