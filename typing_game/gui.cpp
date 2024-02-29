@@ -1,7 +1,7 @@
 #include "gui.hpp"
-#include "lib_imgui/imgui.h"
-#include "lib_imgui/imgui_impl_sdl2.h"
-#include "lib_imgui/imgui_impl_vulkan.h"
+#include "../lib_imgui/imgui.h"
+#include "../lib_imgui/imgui_impl_sdl2.h"
+#include "../lib_imgui/imgui_impl_vulkan.h"
 
 GUI::GUI() {
 	try {
@@ -26,9 +26,9 @@ GUI::~GUI() {
 }
 
 void GUI::initialise() {
-	initialiseImGui();
 	initialiseSDL();
 	initialiseVulkan(extensions);
+	initialiseImGui();
 
 	SDL_Vulkan_GetInstanceExtensions(SDLWindow.window, &extensions_count, nullptr);
 }
@@ -158,6 +158,26 @@ void GUI::initialiseImGui() {
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
 	io = ImGui::GetIO();
+	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+
+	ImGui_ImplSDL2_InitForVulkan(SDLWindow.window);
+    ImGui_ImplVulkan_InitInfo init_info = {};
+	ImGui_ImplVulkanH_Window* mwd = &main_window_data;
+    init_info.Instance = instance;
+    init_info.PhysicalDevice = physical_device;
+    init_info.Device = device;
+    init_info.QueueFamily = queue_family;
+    init_info.Queue = queue;
+    init_info.PipelineCache = pipeline_cache;
+    init_info.DescriptorPool = descriptor_pool;
+    init_info.RenderPass = mwd->RenderPass;
+    init_info.Subpass = 0;
+    init_info.MinImageCount = min_image_count;
+    init_info.ImageCount = mwd->ImageCount;
+    init_info.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+    init_info.Allocator = allocator;
+    init_info.CheckVkResultFn = errorCheck;
+    ImGui_ImplVulkan_Init(&init_info);
 }
 
 void GUI::initialiseSDL() {

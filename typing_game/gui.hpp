@@ -15,9 +15,9 @@
 #include <vulkan/vulkan_core.h>
 #include <vulkan/vulkan_beta.h>
 
-#include "lib_imgui/imgui.h"
-#include "lib_imgui/imgui_impl_sdl2.h"
-#include "lib_imgui/imgui_impl_vulkan.h"
+#include "../lib_imgui/imgui.h"
+#include "../lib_imgui/imgui_impl_sdl2.h"
+#include "../lib_imgui/imgui_impl_vulkan.h"
 #include "smart_pointer_wrapper.hpp"
 #include "smart_pointer_wrapper.cpp"
 
@@ -42,7 +42,6 @@ public:
 	void update();
 	void render(); // late update
 	void handleInput();
-	void errorCheck(VkResult result);
 
 private:
 	struct {
@@ -82,6 +81,8 @@ private:
 
 	void cleanUpVulkanWindow();
 	void cleanUpVulkan();
+
+	static void errorCheck(VkResult result);
 
 	#ifdef APP_USE_VULKAN_DEBUG_REPORT
 	static VKAPI_ATTR VkBool32 VKAPI_CALL debugReport(VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objectType, uint64_t object, size_t location, int32_t messageCode, const char* pLayerPrefix, const char* pMessage, void* pUserData);
