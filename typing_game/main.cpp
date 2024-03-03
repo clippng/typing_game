@@ -1,4 +1,4 @@
-#include "typing_game/game.hpp"
+#include "gui.hpp"
 
 #include <vulkan/vulkan.hpp>
 // idea is to have a way to read text from pdfs / txt files and then
@@ -9,12 +9,7 @@
 
 int main() {
 	VkResult test;
-	Game game;
-
-	while (game.running()) {
-		game.update(); 
-	}
-	game.exit();
+	GUI game;
 	
 	return 0;
 }

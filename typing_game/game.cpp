@@ -1,6 +1,6 @@
+#include <memory>
+
 #include "game.hpp"
-
-
 
 Game::Game() {
 	gui = std::unique_ptr<GUI>();
@@ -13,7 +13,6 @@ void Game::start() {
 }
 
 void Game::exit() {
-	ImGui::DestroyContext();
 }
 
 void Game::update() {

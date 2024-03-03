@@ -1,7 +1,15 @@
+#include <string>
+#include <stdexcept>
+#include <iostream>
+#include <vector>
+
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_vulkan.h>
+#include <vector>
+#include <vulkan/vulkan.h>
+#include <vulkan/vulkan_core.h>
+
 #include "gui.hpp"
-#include "../lib_imgui/imgui.h"
-#include "../lib_imgui/imgui_impl_sdl2.h"
-#include "../lib_imgui/imgui_impl_vulkan.h"
 
 GUI::GUI() {
 	try {
@@ -15,169 +23,32 @@ GUI::GUI() {
 }
 
 GUI::~GUI() {
-	VkResult result = vkDeviceWaitIdle(device);
+	VkResult result = vkDeviceWaitIdle(VulkanInfo.device);
     errorCheck(result);
-    ImGui_ImplVulkan_Shutdown();
-    ImGui_ImplSDL2_Shutdown();
-    ImGui::DestroyContext();
 
     cleanUpVulkanWindow();
     cleanUpVulkan();
 }
 
 void GUI::initialise() {
+
 	initialiseSDL();
-	initialiseVulkan(extensions);
-	initialiseImGui();
+	initialiseVulkan();
 
-	SDL_Vulkan_GetInstanceExtensions(SDLWindow.window, &extensions_count, nullptr);
 }
 
-void GUI::initialiseVulkan(ImVector<const char*> instance_extensions) {
+void GUI::initialiseVulkan() {
+	VkInstanceCreateInfo info {};
+	info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+	info.pApplicationInfo = &VulkanInfo.app_info;
+	info.enabledLayerCount = layer_names.size();
+	info.ppEnabledLayerNames = layer_names.data();
+	info.enabledExtensionCount = extension_names.size();
+	info.ppEnabledExtensionNames = extension_names.data();
+
 	VkResult error_code;
-	
-	{
-		VkInstanceCreateInfo create_info = {};
-		create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-
-		uint32_t properties_count;
-		ImVector<VkExtensionProperties> properties;
-		vkEnumerateInstanceExtensionProperties(nullptr, &properties_count, nullptr);
-		properties.resize(properties_count);
-		error_code = vkEnumerateInstanceExtensionProperties(nullptr, &properties_count, properties.Data);
-		errorCheck(error_code);
-
-		if (extensionCheckAvailable(properties, VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME)) {
-			instance_extensions.push_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
-		}
-
-		#ifdef VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
-
-		if (extensionCheckAvailable(properties, VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME)) {
-			instance_extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-			create_info.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
-		}
-		#endif
-
-		#ifdef APP_USE_VULKAN_DEBUG_REPORT
-
-		const char* layers[] = {"VK_LAYER_KHRONOS_validation"};
-		create_info.enabledLayerCount = 1;
-		create_info.ppEnabledLayerNames = layers;
-		instance_extensions.push_back("VK_EXT_debug_report");
-		#endif
-
-		create_info.enabledExtensionCount = (uint32_t)instance_extensions.Size;
-		create_info.ppEnabledExtensionNames = instance_extensions.Data;
-		error_code = vkCreateInstance(&create_info, allocator, &instance);
-		errorCheck(error_code);
-
-		#ifdef APP_USE_VULKAN_DEBUG_REPORT
-
-		auto vkCreateDebugReportCallbakcEXT = (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugReportCallbackEXT");
-		IM_ASSERT(vkCreateDebugReportCallbakcEXT != nullptr);
-		VkDebugReportCallbackCreateInfoEXT debug_report_create_info = {};
-		debug_report_create_info.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
-		debug_report_create_info.flags = VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT;
-		debug_report_create_info.pfnCallback = debugReport;
-		error_code = vkCreateDebugReportCallbakcEXT(instance, &debug_report_create_info, allocator, &debug_report);
-		errorCheck(error_code);
-		#endif
-	}
-
-	physical_device = selectGPU();
-
-	{
-		uint32_t count;
-		vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &count, nullptr);
-		std::unique_ptr<VkQueueFamilyProperties> queues;
-		vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &count, queues.get());	
-
-		for (uint32_t i = 0; i < count; ++i) {
-			if (queues.get()[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
-				queue_family = i;
-				break;
-			}
-		}
-
-		IM_ASSERT(queue_family != (uint32_t) - 1);
-	}
-
-	{
-		ImVector<const char*> device_extensions;
-		device_extensions.push_back("VK_KHR_swapchain");
-
-		uint32_t properties_count;
-		ImVector<VkExtensionProperties> properties;
-		vkEnumerateDeviceExtensionProperties(physical_device, nullptr, &properties_count,  nullptr);
-		properties.resize(properties_count);
-		vkEnumerateDeviceExtensionProperties(physical_device, nullptr, &properties_count, properties.Data);
-	
-		#ifdef VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME
-		if (extensionCheckAvailable(properties, VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME)) {
-			device_extensions.push_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
-		}
-		#endif
-
-		const float queue_priority[] = {1.0f};
-
-		VkDeviceQueueCreateInfo queue_info[1] = {};
-		queue_info[0].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-		queue_info[0].queueFamilyIndex = queue_family;
-		queue_info[0].queueCount = 1;
-		queue_info[0].pQueuePriorities = queue_priority;
-
-		VkDeviceCreateInfo create_info = {};
-		create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-		create_info.queueCreateInfoCount = sizeof(queue_info) / sizeof(queue_info[0]);
-		create_info.pQueueCreateInfos = queue_info;
-		create_info.enabledExtensionCount = (uint32_t)device_extensions.Size;
-		create_info.ppEnabledExtensionNames = device_extensions.Data;
-		error_code = vkCreateDevice(physical_device, &create_info, allocator, &device);
-		errorCheck(error_code);
-
-		vkGetDeviceQueue(device, queue_family, 0, &queue);
-	}
-
-	{
-		VkDescriptorPoolSize pool_sizes[] = {
-			{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1},
-		};
-		VkDescriptorPoolCreateInfo pool_info = {};
-		pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-		pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-		pool_info.maxSets = 1;
-		pool_info.poolSizeCount = (uint32_t)IM_ARRAYSIZE(pool_sizes);
-		pool_info.pPoolSizes = pool_sizes;
-		error_code = vkCreateDescriptorPool(device, &pool_info, allocator, &descriptor_pool);
-	}
-	
-}
-
-void GUI::initialiseImGui() {
-	IMGUI_CHECKVERSION();
-	ImGui::CreateContext();
-	io = ImGui::GetIO();
-	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-
-	ImGui_ImplSDL2_InitForVulkan(SDLWindow.window);
-    ImGui_ImplVulkan_InitInfo init_info = {};
-	ImGui_ImplVulkanH_Window* mwd = &main_window_data;
-    init_info.Instance = instance;
-    init_info.PhysicalDevice = physical_device;
-    init_info.Device = device;
-    init_info.QueueFamily = queue_family;
-    init_info.Queue = queue;
-    init_info.PipelineCache = pipeline_cache;
-    init_info.DescriptorPool = descriptor_pool;
-    init_info.RenderPass = mwd->RenderPass;
-    init_info.Subpass = 0;
-    init_info.MinImageCount = min_image_count;
-    init_info.ImageCount = mwd->ImageCount;
-    init_info.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
-    init_info.Allocator = allocator;
-    init_info.CheckVkResultFn = errorCheck;
-    ImGui_ImplVulkan_Init(&init_info);
+	error_code = vkCreateInstance(&info, nullptr, &VulkanInfo.instance);
+	errorCheck(error_code);
 }
 
 void GUI::initialiseSDL() {
@@ -188,38 +59,35 @@ void GUI::initialiseSDL() {
 		throw std::runtime_error("Couldn't initialise SDL");
 	}
 
-	SDLWindow.window = SDL_CreateWindow("TESTT", SDL_WINDOWPOS_CENTERED, 
-		SDL_WINDOWPOS_CENTERED, 1280, 720, window_flags);
+	SDLInfo.window = SDL_CreateWindow("TESTT", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, SDLInfo.width, SDLInfo.height, window_flags);
 
-	if (!SDLWindow.window) {
+	if (!SDLInfo.window) {
 		throw std::runtime_error("Couldn't initialise SDL");
 	}
 
 	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
 
-	SDLWindow.renderer = SDL_CreateRenderer(SDLWindow.window, -1, renderer_flags);
-	extensions.resize(extensions_count);
-	SDL_Vulkan_GetInstanceExtensions(SDLWindow.window, &extensions_count, extensions.Data);
+	SDLInfo.renderer = SDL_CreateRenderer(SDLInfo.window, -1, renderer_flags);
 
-	if (!SDLWindow.renderer) {
+	SDL_Vulkan_GetInstanceExtensions(SDLInfo.window, &extensions_count, nullptr);
+	extension_names.resize(extensions_count);
+	SDL_Vulkan_GetInstanceExtensions(SDLInfo.window, &extensions_count, extension_names.data());
+
+	if (!SDLInfo.renderer) {
 		throw std::runtime_error("Couldn't initialise SDL");
 	}
 }
 
 void GUI::earlyUpdate() {
-	ImGui_ImplSDL2_ProcessEvent(&event);
+	
 }
 
 void GUI::update() {
-	ImGui_ImplVulkan_NewFrame();
-	ImGui_ImplSDL2_NewFrame();
-	ImGui::NewFrame();
-	ImGui::ShowDemoWindow();
+
 }
 
 void GUI::render() {
-	ImGui::Render();
-	ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), command_buffer);
+
 }
 
 void GUI::handleInput() {
@@ -246,24 +114,14 @@ void GUI::errorCheck(VkResult result) {
 	}
 }
 
-bool GUI::extensionCheckAvailable(const ImVector<VkExtensionProperties>& properties, const char* extension) {
-	for (const VkExtensionProperties& p : properties) {
-		if (strcmp(p.extensionName, extension) == 0) {
-			return true;
-		} 
-	}
-	return false;
-}
-
 VkPhysicalDevice GUI::selectGPU() {
 	uint32_t gpu_count;
-	VkResult result = vkEnumeratePhysicalDevices(instance, &gpu_count, nullptr);
-	//check for errors
-	IM_ASSERT(gpu_count < 0);
+	VkResult error_code = vkEnumeratePhysicalDevices(VulkanInfo.instance, &gpu_count, nullptr);
+	errorCheck(error_code);
 
-	ImVector<VkPhysicalDevice> gpus;
+	std::vector<VkPhysicalDevice> gpus;
 	gpus.resize(gpu_count);
-	result = vkEnumeratePhysicalDevices(instance, &gpu_count, gpus.Data);
+	error_code = vkEnumeratePhysicalDevices(VulkanInfo.instance, &gpu_count, gpus.data());
 	//check for errors
 
 	for (VkPhysicalDevice& device : gpus) {
@@ -281,23 +139,12 @@ VkPhysicalDevice GUI::selectGPU() {
 }
 
 void GUI::cleanUpVulkanWindow() {
-	ImGui_ImplVulkanH_DestroyWindow(instance, device, &main_window_data, allocator);
+
 }
 
 void GUI::cleanUpVulkan() {
-	vkDestroyDescriptorPool(device, descriptor_pool, allocator);
+	vkDestroyDescriptorPool(VulkanInfo.device, VulkanInfo.descriptor_pool, VulkanInfo.allocator);
 
-	#ifdef APP_USE_VULKAN_DEBUG_REPORT
-    auto vkDestroyDebugReportCallbackEXT = (PFN_vkDestroyDebugReportCallbackEXT)vkGetInstanceProcAddr(instance, "vkDestroyDebugReportCallbackEXT");
-    vkDestroyDebugReportCallbackEXT(instance, debug_report, allocator);
-	#endif 
-
-    vkDestroyDevice(device, allocator);
-    vkDestroyInstance(instance, allocator);
-}
-
-VKAPI_ATTR VkBool32 VKAPI_CALL GUI::debugReport(VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objectType, uint64_t object, size_t location, int32_t messageCode, const char* pLayerPrefix, const char* pMessage, void* pUserData) {
-    (void)flags; (void)object; (void)location; (void)messageCode; (void)pUserData; (void)pLayerPrefix; // Unused arguments
-    fprintf(stderr, "[vulkan] Debug report from ObjectType: %i\nMessage: %s\n\n", objectType, pMessage);
-    return VK_FALSE;
+    vkDestroyDevice(VulkanInfo.device, VulkanInfo.allocator);
+    vkDestroyInstance(VulkanInfo.instance, VulkanInfo.allocator);
 }

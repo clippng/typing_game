@@ -1,9 +1,7 @@
 #pragma once 
 
-#include <memory>
 #include <string>
 
-#include "../lib_imgui/imgui.h"
 #include "paragraph.hpp"
 #include "gui.hpp"
 
