@@ -13,6 +13,8 @@ public:
 	GUI();
 	~GUI();
 
+	const bool running();
+
 	void initialise();
 	void initialiseVulkan();
 	void initialiseSDL();

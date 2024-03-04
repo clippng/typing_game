@@ -30,11 +30,15 @@ GUI::~GUI() {
     cleanUpVulkan();
 }
 
+const bool GUI::running() {
+	return true;
+}
+
 void GUI::initialise() {
 
 	initialiseSDL();
-	initialiseVulkan();
-
+	//initialiseVulkan();
+	// selectGPU();
 }
 
 void GUI::initialiseVulkan() {
