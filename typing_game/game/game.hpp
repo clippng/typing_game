@@ -3,7 +3,7 @@
 #include <string>
 
 #include "paragraph.hpp"
-#include "gui.hpp"
+#include "renderer.hpp"
 
 class Game {
 public:
@@ -18,5 +18,5 @@ private:
 	bool is_running;
 	int last_key_pressed;
 	std::unique_ptr<Paragraph> current_paragraph;
-	std::unique_ptr<GUI> gui;
+	std::unique_ptr<Renderer> gui;
 };

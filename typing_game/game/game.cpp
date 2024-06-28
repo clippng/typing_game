@@ -3,7 +3,7 @@
 #include "game.hpp"
 
 Game::Game() {
-	gui = std::unique_ptr<GUI>();
+	gui = std::unique_ptr<Renderer>();
 	is_running = true;
 	start();
 }
