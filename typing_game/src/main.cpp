@@ -11,8 +11,10 @@
 
 int main() {
 	Renderer renderer;
-	char input;
-	std::cin >> input;
+	while (renderer.running()) {
+		renderer.handleInput();
+		renderer.render();
+	}
 	
 	return 0;
 }

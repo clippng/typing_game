@@ -16,7 +16,7 @@ void Game::exit() {
 }
 
 void Game::update() {
-	gui->update();
+
 }
 
 void Game::getInput() {

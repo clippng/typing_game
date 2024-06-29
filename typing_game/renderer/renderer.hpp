@@ -1,10 +1,9 @@
 #pragma once 
 
 #include <SDL2/SDL_events.h>
-#include <string>
+#include <SDL2/SDL_ttf.h>
 
 #include <SDL2/SDL.h>
-#include <vector>
 
 class Renderer {
 public:
@@ -13,9 +12,7 @@ public:
 
 	bool running();
 
-	void earlyUpdate();
-	void update();
-	void render(); // late update
+	void render();
 	void handleInput();
 
 private:
@@ -24,6 +21,7 @@ private:
 
 	SDL_Renderer *renderer;
 	SDL_Texture* texture;
+	SDL_Surface* surface;
 	SDL_Window *window;
 
 	int width = 1280;
@@ -38,6 +36,12 @@ private:
 	const int pixel_format = SDL_PIXELFORMAT_RGBA8888;
 	const int texture_access = SDL_TEXTUREACCESS_STREAMING;
 
-	const std::string paragraph = "This is a test paragraph idk how long it has to be to go over lines but hopefully this is enough";
+	SDL_Rect text_box;
 
+	const char* paragraph = "This is a test paragraph idk how long it has to be to go over lines but hopefully this is enough";
+
+	const char* font_path = "/home/tom/Desktop/GitHub/typing_game/fonts/roboto/Roboto-Black.ttf";
+	uint16_t font_size = 108;
+	SDL_Color font_colour = { 255, 255, 255, 255 };
+	TTF_Font* font;
 };

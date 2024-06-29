@@ -8,5 +8,6 @@ project(Typer VERSION 0.1.3)
 
 add_subdirectory(typing_game)
 
-find_package(SDL2 REQUIRED)
+find_package(SDL2 CONFIG REQUIRED)
+find_package(SDL2_ttf CONFIG REQUIRED)
 
