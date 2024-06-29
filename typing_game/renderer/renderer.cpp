@@ -5,7 +5,10 @@
 
 #include "renderer.hpp"
 
-Renderer::Renderer() {
+Renderer::Renderer(const uint32_t window_width, const uint32_t window_height) :
+	width(window_width), height(window_height), 
+	text_box(4, 4 , window_width - 8, window_height / 2 - 4),
+	typing_box(4, window_height / 2 + 4, window_width - 8, window_height / 2 - 4) {
 	try {
 		if (SDL_Init(init_flags) != 0) {
 			throw std::runtime_error("Couldn't initialise SDL");
@@ -40,10 +43,7 @@ Renderer::Renderer() {
 	if (font == NULL) {
 		std::cout << TTF_GetError() << std::endl;
 	}
-	text_box.x = 0;
-	text_box.y = 0;
-	text_box.w = width;
-	text_box.h = height;
+
 	should_close = false;
 }
 
@@ -61,22 +61,19 @@ bool Renderer::running() {
 	return !should_close;
 }
 
+
 void Renderer::render() {
 	SDL_RenderClear(renderer);
-	surface = TTF_RenderText_Solid_Wrapped(font, paragraph, font_colour, width);
-	texture = SDL_CreateTextureFromSurface(renderer, surface);
-	SDL_RenderCopy(renderer, texture, NULL, &text_box);
+
+	drawText(paragraph, &text_box);
+
+	drawText(current_paragraph, &typing_box);
+
 	SDL_RenderPresent(renderer);
 }
 
-void Renderer::handleInput() {
-	while (SDL_PollEvent(&event)) {
-		switch (event.type) {
-			case SDL_KEYDOWN:
-				switch(event.key.keysym.sym) {
-					case SDLK_ESCAPE: should_close = true; break;
-				}
-			case SDL_QUIT: should_close = true; break;
-		}
-	}
+void Renderer::drawText(const char* text, const SDL_Rect *target) {
+	surface = TTF_RenderText_Solid_Wrapped(font, text, font_colour, width);
+	texture = SDL_CreateTextureFromSurface(renderer, surface);
+	SDL_RenderCopy(renderer, texture, NULL, target);
 }
