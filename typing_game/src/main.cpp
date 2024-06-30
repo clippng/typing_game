@@ -1,4 +1,6 @@
 #include <iostream>
+#include <string>
+#include <memory>
 
 
 #include "renderer.hpp"
@@ -22,17 +24,21 @@ int main(int argc, char* argv[]) {
 	Renderer* renderer = new Renderer(1080, 720);
 	EventHandler* event_handler = new EventHandler;
 
+	std::string word = "io";
 	SDL_Event event;
 	bool should_close = false;
+	SDL_StartTextInput();
+	std::shared_ptr<std::string> input;
+	input = event_handler->getInput();
+	renderer->updateParagraph(input);
 	while (!event_handler->shouldClose()) {
+		// SDL_Delay(30); // do this but with regard to real time
 		SDL_PollEvent(&event);
 		event_handler->queryEvent(&event);
-		// send input to game object here
-		if (event_handler->getInput() != 0) {
-			std::cout << static_cast<char>(event_handler->getInput()) << std::endl;
-		}
+		
 		renderer->render();
 	}
+	SDL_StopTextInput();
 	
 	delete event_handler;
 	delete renderer;

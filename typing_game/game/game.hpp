@@ -8,6 +8,7 @@
 class Game {
 public:
 	Game();
+	~Game();
 	void start();
 	void exit();
 	void update();
@@ -16,7 +17,7 @@ public:
 	
 private:
 	bool is_running;
-	// int last_key_pressed;
+
 	std::unique_ptr<Paragraph> current_paragraph;
-	std::unique_ptr<Renderer> gui;
+	std::unique_ptr<Renderer> renderer;
 };

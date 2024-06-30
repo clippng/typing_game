@@ -3,9 +3,13 @@
 #include "game.hpp"
 
 Game::Game() {
-	gui = std::unique_ptr<Renderer>();
+	renderer = std::unique_ptr<Renderer>();
 	is_running = true;
 	start();
+}
+
+Game::~Game() {
+	
 }
 
 void Game::start() {
@@ -13,6 +17,7 @@ void Game::start() {
 }
 
 void Game::exit() {
+
 }
 
 void Game::update() {

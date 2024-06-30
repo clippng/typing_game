@@ -5,8 +5,10 @@
 
 #include "renderer.hpp"
 
+// fix text warping in rects
+
 Renderer::Renderer(const uint32_t window_width, const uint32_t window_height) :
-	width(window_width), height(window_height), 
+	width(window_width), height(window_height),	
 	text_box(4, 4 , window_width - 8, window_height / 2 - 4),
 	typing_box(4, window_height / 2 + 4, window_width - 8, window_height / 2 - 4) {
 	try {
@@ -14,7 +16,7 @@ Renderer::Renderer(const uint32_t window_width, const uint32_t window_height) :
 			throw std::runtime_error("Couldn't initialise SDL");
 		}
 
-		window = SDL_CreateWindow("TESTT", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, window_flags);
+		window = SDL_CreateWindow(window_title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, window_flags);
 
 		if (!window) {
 			throw std::runtime_error("Couldn't initialise SDL");
@@ -43,14 +45,13 @@ Renderer::Renderer(const uint32_t window_width, const uint32_t window_height) :
 	if (font == NULL) {
 		std::cout << TTF_GetError() << std::endl;
 	}
-
 	should_close = false;
 }
 
 Renderer::~Renderer() {
 	TTF_CloseFont(font);
-	SDL_FreeSurface(surface);
-	SDL_DestroyTexture(texture);
+	TTF_Quit();
+
 	SDL_DestroyRenderer(renderer);
 	SDL_DestroyWindow(window);
 
@@ -63,17 +64,27 @@ bool Renderer::running() {
 
 
 void Renderer::render() {
-	SDL_RenderClear(renderer);
+	SDL_RenderClear(renderer); 
 
-	drawText(paragraph, &text_box);
+//	TTF_SizeText(font, input->c_str(), &typing_box.w, &typing_box.h);
 
-	drawText(current_paragraph, &typing_box);
+	drawText(input->c_str(), &typing_box);
+
+	drawText(paragraph.c_str(), &text_box);
 
 	SDL_RenderPresent(renderer);
 }
 
 void Renderer::drawText(const char* text, const SDL_Rect *target) {
-	surface = TTF_RenderText_Solid_Wrapped(font, text, font_colour, width);
-	texture = SDL_CreateTextureFromSurface(renderer, surface);
-	SDL_RenderCopy(renderer, texture, NULL, target);
+	if (text) {
+		surface = TTF_RenderText_Solid_Wrapped(font, text, font_colour, width);
+		texture = SDL_CreateTextureFromSurface(renderer, surface);
+		SDL_RenderCopy(renderer, texture, NULL, target);
+		SDL_DestroyTexture(texture);
+		SDL_FreeSurface(surface);
+	}
+}
+
+void Renderer::updateParagraph(std::shared_ptr<std::string> paragraph) {
+	input = paragraph;
 }

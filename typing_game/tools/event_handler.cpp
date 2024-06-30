@@ -2,7 +2,7 @@
 
 
 EventHandler::EventHandler() {
-
+	input_string = std::unique_ptr<std::string>(new std::string);
 }
 
 EventHandler::~EventHandler() {
@@ -10,19 +10,25 @@ EventHandler::~EventHandler() {
 }
 
 void EventHandler::queryEvent(SDL_Event* event) {
-	key_down = 0;
 	switch (event->type) {
 		case SDL_QUIT: should_close = true; break;
 		case SDL_KEYDOWN:
-			if (event->key.keysym.sym == SDLK_ESCAPE) {
-				should_close = true; 
-			} else {
-				key_down = event->key.keysym.sym;
+			switch (event->key.keysym.sym) {
+				case SDLK_ESCAPE: should_close = true; break;
+				case SDLK_BACKSPACE: if (input_string->size()) { input_string->pop_back(); } break;
 			} break;
-		case SDL_KEYUP: key_down = 0; break;
+		case SDL_TEXTINPUT: *input_string += event->text.text; break;
+		
 	}
 }
 
-const SDL_Keycode EventHandler::getInput() {
-	return key_down;
+
+// works for standard ascii keys but not modifier keys
+// will need to hold more than 1 input key at once
+std::shared_ptr<std::string> EventHandler::getInput() {
+	return input_string;
+}
+
+void EventHandler::clearInputBuffer() {
+	*input_string = "";
 }

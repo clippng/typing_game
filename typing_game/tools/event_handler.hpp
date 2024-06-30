@@ -1,7 +1,8 @@
 #pragma once
 
 #include <SDL2/SDL_events.h>
-
+#include <string>
+#include <memory>
 
 
 class EventHandler {
@@ -13,14 +14,18 @@ public:
 
 	void queryEvent(SDL_Event* event);
 
-	const SDL_Keycode getInput();
+	std::shared_ptr<std::string> getInput();
+
+	void clearInputBuffer();
 
 
 private:
 	bool should_close = false;
 
-	SDL_Keycode key_down;
+	std::shared_ptr<std::string> input_string;
 
-	uint32_t key_held;
+
+	bool shift_held;
+	bool caps_lock;
 
 };
