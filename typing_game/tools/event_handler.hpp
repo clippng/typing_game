@@ -22,6 +22,8 @@ public:
 private:
 	bool should_close = false;
 
+	bool input_mode = false; // 0 for menu 1 for typing
+
 	std::shared_ptr<std::string> input_string;
 
 

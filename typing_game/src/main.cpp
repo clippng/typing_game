@@ -31,6 +31,11 @@ int main(int argc, char* argv[]) {
 	std::shared_ptr<std::string> input;
 	input = event_handler->getInput();
 	renderer->updateParagraph(input);
+	std::string strr = "qweqweqweqwe";
+	std::vector<std::string> res = renderer->substringify(&strr, 3);
+	for (auto i = 0; i < res.size(); ++i) {
+		std::cout << res.at(i) << std::endl;
+	}
 	while (!event_handler->shouldClose()) {
 		// SDL_Delay(30); // do this but with regard to real time
 		SDL_PollEvent(&event);
